@@ -1,3 +1,22 @@
+# =========================
+# Stage 1: Build frontend
+# =========================
+FROM node:22 AS frontend
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+
+# =========================
+# Stage 2: Laravel + Apache
+# =========================
 FROM php:8.2-apache
 
 # Install system dependencies
@@ -14,7 +33,7 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Set Apache document root to Laravel public directory
+# Set Apache document root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' \
@@ -27,13 +46,16 @@ WORKDIR /var/www/html
 
 COPY . .
 
+# Copy built Vite assets
+COPY --from=frontend /app/public/build /var/www/html/public/build
+
 # Install PHP dependencies
 RUN composer install \
     --no-dev \
     --optimize-autoloader \
     --no-interaction
 
-# Set Laravel permissions
+# Laravel permissions
 RUN chown -R www-data:www-data \
     /var/www/html/storage \
     /var/www/html/bootstrap/cache
